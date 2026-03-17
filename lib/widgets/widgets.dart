@@ -1,6 +1,6 @@
-/// 导出所有组件
 library;
 
+export 'app_panels.dart';
 export 'data_display_list.dart';
 export 'error_display.dart';
 export 'format_selector.dart';

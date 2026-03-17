@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+
 import '../models/message_data.dart';
 import '../utils/data_converter.dart';
 
-/// 数据格式选择器组件
 class FormatSelector extends StatelessWidget {
   final DataFormat value;
   final ValueChanged<DataFormat> onChanged;
@@ -19,49 +19,28 @@ class FormatSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (label != null) ...[
-          Text(label!, style: Theme.of(context).textTheme.bodyMedium),
-          const SizedBox(width: 8),
-        ],
-        Container(
-          padding: EdgeInsets.symmetric(
-            horizontal: dense ? 8 : 12,
-            vertical: dense ? 0 : 4,
+    return _SelectorFrame<DataFormat>(
+      label: label,
+      dense: dense,
+      value: value,
+      items: DataFormat.values.map((format) {
+        return DropdownMenuItem<DataFormat>(
+          value: format,
+          child: Text(
+            DataConverter.getFormatName(format),
+            style: TextStyle(fontSize: dense ? 11 : 14),
           ),
-          decoration: BoxDecoration(
-            border: Border.all(color: Theme.of(context).dividerColor),
-            borderRadius: BorderRadius.circular(4),
-          ),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<DataFormat>(
-              value: value,
-              isDense: true,
-              items: DataFormat.values.map((format) {
-                return DropdownMenuItem<DataFormat>(
-                  value: format,
-                  child: Text(
-                    DataConverter.getFormatName(format),
-                    style: TextStyle(fontSize: dense ? 12 : 14),
-                  ),
-                );
-              }).toList(),
-              onChanged: (newValue) {
-                if (newValue != null) {
-                  onChanged(newValue);
-                }
-              },
-            ),
-          ),
-        ),
-      ],
+        );
+      }).toList(),
+      onChanged: (newValue) {
+        if (newValue != null) {
+          onChanged(newValue);
+        }
+      },
     );
   }
 }
 
-/// 编码选择器组件
 class EncodingSelector extends StatelessWidget {
   final CharEncoding value;
   final ValueChanged<CharEncoding> onChanged;
@@ -78,49 +57,28 @@ class EncodingSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (label != null) ...[
-          Text(label!, style: Theme.of(context).textTheme.bodyMedium),
-          const SizedBox(width: 8),
-        ],
-        Container(
-          padding: EdgeInsets.symmetric(
-            horizontal: dense ? 8 : 12,
-            vertical: dense ? 0 : 4,
+    return _SelectorFrame<CharEncoding>(
+      label: label,
+      dense: dense,
+      value: value,
+      items: CharEncoding.values.map((encoding) {
+        return DropdownMenuItem<CharEncoding>(
+          value: encoding,
+          child: Text(
+            DataConverter.getEncodingName(encoding),
+            style: TextStyle(fontSize: dense ? 11 : 14),
           ),
-          decoration: BoxDecoration(
-            border: Border.all(color: Theme.of(context).dividerColor),
-            borderRadius: BorderRadius.circular(4),
-          ),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<CharEncoding>(
-              value: value,
-              isDense: true,
-              items: CharEncoding.values.map((encoding) {
-                return DropdownMenuItem<CharEncoding>(
-                  value: encoding,
-                  child: Text(
-                    DataConverter.getEncodingName(encoding),
-                    style: TextStyle(fontSize: dense ? 12 : 14),
-                  ),
-                );
-              }).toList(),
-              onChanged: (newValue) {
-                if (newValue != null) {
-                  onChanged(newValue);
-                }
-              },
-            ),
-          ),
-        ),
-      ],
+        );
+      }).toList(),
+      onChanged: (newValue) {
+        if (newValue != null) {
+          onChanged(newValue);
+        }
+      },
     );
   }
 }
 
-/// 双格式选择器（发送和接收格式独立选择）
 class DualFormatSelector extends StatelessWidget {
   final DataFormat sendFormat;
   final DataFormat receiveFormat;
@@ -138,30 +96,26 @@ class DualFormatSelector extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Expanded(
-          child: FormatSelector(
-            label: '发送',
-            value: sendFormat,
-            onChanged: onSendFormatChanged,
-            dense: true,
-          ),
+        FormatSelector(
+          label: '发',
+          value: sendFormat,
+          onChanged: onSendFormatChanged,
+          dense: true,
         ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: FormatSelector(
-            label: '接收',
-            value: receiveFormat,
-            onChanged: onReceiveFormatChanged,
-            dense: true,
-          ),
+        const SizedBox(width: 6),
+        FormatSelector(
+          label: '收',
+          value: receiveFormat,
+          onChanged: onReceiveFormatChanged,
+          dense: true,
         ),
       ],
     );
   }
 }
 
-/// 格式和编码选择器组合（用于显示区域）
 class FormatEncodingSelector extends StatelessWidget {
   final DataFormat format;
   final CharEncoding encoding;
@@ -183,6 +137,7 @@ class FormatEncodingSelector extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         FormatSelector(
           label: formatLabel,
@@ -190,7 +145,7 @@ class FormatEncodingSelector extends StatelessWidget {
           onChanged: onFormatChanged,
           dense: true,
         ),
-        const SizedBox(width: 16),
+        const SizedBox(width: 6),
         EncodingSelector(
           label: encodingLabel,
           value: encoding,
@@ -198,6 +153,63 @@ class FormatEncodingSelector extends StatelessWidget {
           dense: true,
         ),
       ],
+    );
+  }
+}
+
+class _SelectorFrame<T> extends StatelessWidget {
+  final T value;
+  final ValueChanged<T?> onChanged;
+  final List<DropdownMenuItem<T>> items;
+  final String? label;
+  final bool dense;
+
+  const _SelectorFrame({
+    required this.value,
+    required this.onChanged,
+    required this.items,
+    this.label,
+    required this.dense,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: dense ? 8 : 12,
+        vertical: dense ? 0 : 4,
+      ),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: scheme.outlineVariant),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (label != null) ...[
+            Text(
+              label!,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                fontSize: dense ? 11 : null,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(width: 6),
+          ],
+          DropdownButtonHideUnderline(
+            child: DropdownButton<T>(
+              value: value,
+              isDense: true,
+              iconSize: dense ? 18 : 24,
+              items: items,
+              onChanged: onChanged,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

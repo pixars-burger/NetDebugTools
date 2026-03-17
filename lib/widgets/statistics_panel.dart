@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+
 import '../models/statistics.dart';
 
-/// 统计信息面板组件
 class StatisticsPanel extends StatelessWidget {
   final Statistics statistics;
   final VoidCallback? onReset;
@@ -17,74 +17,66 @@ class StatisticsPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      margin: const EdgeInsets.all(8),
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
                   '统计信息',
                   style: Theme.of(
                     context,
-                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
                 ),
+                const Spacer(),
                 if (onReset != null)
                   TextButton.icon(
                     onPressed: onReset,
-                    icon: const Icon(Icons.refresh, size: 16),
+                    icon: const Icon(Icons.refresh_rounded, size: 16),
                     label: const Text('重置'),
-                    style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
                   ),
               ],
             ),
             const SizedBox(height: 8),
-            _buildStatRow(context),
+            _buildStatRow(),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildStatRow(BuildContext context) {
+  Widget _buildStatRow() {
     return Wrap(
-      spacing: 16,
+      spacing: 8,
       runSpacing: 8,
       children: [
         _StatItem(
-          icon: Icons.upload,
+          icon: Icons.north_east_rounded,
           label: '发送',
-          value:
-              '${statistics.formattedSentBytes} / ${statistics.sentPackets} 包',
-          color: Colors.blue,
+          value: '${statistics.formattedSentBytes} / ${statistics.sentPackets}',
+          color: const Color(0xFF2563EB),
         ),
         _StatItem(
-          icon: Icons.download,
+          icon: Icons.south_west_rounded,
           label: '接收',
           value:
-              '${statistics.formattedReceivedBytes} / ${statistics.receivedPackets} 包',
-          color: Colors.green,
+              '${statistics.formattedReceivedBytes} / ${statistics.receivedPackets}',
+          color: const Color(0xFF059669),
         ),
         if (showDuration && statistics.startTime != null)
           _StatItem(
-            icon: Icons.timer,
+            icon: Icons.timer_outlined,
             label: '时长',
             value: statistics.formattedDuration,
-            color: Colors.orange,
+            color: const Color(0xFFF97316),
           ),
       ],
     );
   }
 }
 
-/// 统计项组件
 class _StatItem extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -101,15 +93,15 @@ class _StatItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(14),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 16, color: color),
+          Icon(icon, size: 15, color: color),
           const SizedBox(width: 6),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -118,14 +110,15 @@ class _StatItem extends StatelessWidget {
                 label,
                 style: TextStyle(
                   fontSize: 10,
-                  color: color.withValues(alpha: 0.8),
+                  fontWeight: FontWeight.w600,
+                  color: color.withValues(alpha: 0.9),
                 ),
               ),
               Text(
                 value,
                 style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
                   color: color,
                 ),
               ),
@@ -137,7 +130,6 @@ class _StatItem extends StatelessWidget {
   }
 }
 
-/// 紧凑版统计面板
 class CompactStatisticsPanel extends StatelessWidget {
   final Statistics statistics;
   final VoidCallback? onReset;
@@ -150,37 +142,52 @@ class CompactStatisticsPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(8),
+        gradient: LinearGradient(
+          colors: [scheme.surfaceContainerHigh, scheme.surfaceContainerLow],
+        ),
+        borderRadius: BorderRadius.circular(14),
       ),
       child: Row(
         children: [
+          const Icon(Icons.data_usage_rounded, size: 14),
+          const SizedBox(width: 6),
           Expanded(
             child: Text(
-              '↑ ${statistics.formattedSentBytes}/${statistics.sentPackets}包  '
-              '↓ ${statistics.formattedReceivedBytes}/${statistics.receivedPackets}包',
-              style: const TextStyle(fontSize: 12),
+              '↑ ${statistics.formattedSentBytes}/${statistics.sentPackets}   '
+              '↓ ${statistics.formattedReceivedBytes}/${statistics.receivedPackets}',
+              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
-          if (statistics.startTime != null)
+          if (statistics.startTime != null) ...[
+            const SizedBox(width: 6),
             Text(
               statistics.formattedDuration,
               style: TextStyle(
-                fontSize: 12,
-                color: Theme.of(context).colorScheme.primary,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: scheme.primary,
               ),
             ),
+          ],
           if (onReset != null) ...[
-            const SizedBox(width: 8),
+            const SizedBox(width: 4),
             InkWell(
+              borderRadius: BorderRadius.circular(999),
               onTap: onReset,
-              child: Icon(
-                Icons.refresh,
-                size: 16,
-                color: Theme.of(context).colorScheme.primary,
+              child: Padding(
+                padding: const EdgeInsets.all(2),
+                child: Icon(
+                  Icons.refresh_rounded,
+                  size: 16,
+                  color: scheme.primary,
+                ),
               ),
             ),
           ],

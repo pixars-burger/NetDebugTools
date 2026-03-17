@@ -69,7 +69,7 @@ class MqttService extends ChangeNotifier {
     bool useWebSocket = false,
     bool useWss = false,
     String wsPath = '/mqtt',
-    int keepAlive = 60,
+    int keepAlive = AppConstants.mqttKeepAlive,
   }) async {
     if (_state == ConnectionState.connecting ||
         _state == ConnectionState.connected) {
@@ -106,6 +106,7 @@ class MqttService extends ChangeNotifier {
       }
 
       _client!.logging(on: false);
+      _client!.autoReconnect = true;
       _client!.keepAlivePeriod = _keepAlive;
       _client!.onConnected = _onConnected;
       _client!.onDisconnected = _onDisconnected;

@@ -45,7 +45,7 @@ class TimestampFormatter {
     } else if (minutes > 0) {
       return '${minutes}m ${seconds}s';
     } else if (seconds > 0) {
-      return '${seconds}.${milliseconds.toString().padLeft(3, '0')}s';
+      return '$seconds.${milliseconds.toString().padLeft(3, '0')}s';
     } else {
       return '${milliseconds}ms';
     }

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-/// 发送历史按钮组件
 class SendHistoryButton extends StatelessWidget {
   final List<String> history;
   final ValueChanged<String> onSelect;
@@ -20,9 +19,15 @@ class SendHistoryButton extends StatelessWidget {
     }
 
     return PopupMenuButton<String>(
-      icon: const Icon(Icons.history),
+      icon: const Icon(Icons.history_rounded),
       tooltip: '发送历史',
-      onSelected: onSelect,
+      onSelected: (value) {
+        if (value == '__clear__') {
+          onClear?.call();
+          return;
+        }
+        onSelect(value);
+      },
       itemBuilder: (context) {
         return [
           ...history.map(
@@ -43,7 +48,7 @@ class SendHistoryButton extends StatelessWidget {
               child: Row(
                 children: [
                   Icon(
-                    Icons.delete_outline,
+                    Icons.delete_outline_rounded,
                     size: 18,
                     color: Theme.of(context).colorScheme.error,
                   ),
@@ -64,7 +69,6 @@ class SendHistoryButton extends StatelessWidget {
   }
 }
 
-/// 发送历史下拉菜单
 class SendHistoryDropdown extends StatelessWidget {
   final List<String> history;
   final ValueChanged<String> onSelect;
@@ -78,76 +82,96 @@ class SendHistoryDropdown extends StatelessWidget {
   });
 
   void _showHistoryDialog(BuildContext context) {
-    showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.5,
-        minChildSize: 0.3,
-        maxChildSize: 0.8,
+        initialChildSize: 0.58,
+        minChildSize: 0.32,
+        maxChildSize: 0.88,
         expand: false,
         builder: (context, scrollController) {
-          return Column(
-            children: [
-              // 标题栏
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  border: Border(
-                    bottom: BorderSide(color: Theme.of(context).dividerColor),
+          final scheme = Theme.of(context).colorScheme;
+
+          return DecoratedBox(
+            decoration: BoxDecoration(
+              color: Theme.of(context).cardColor,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(28),
+              ),
+            ),
+            child: Column(
+              children: [
+                const SizedBox(height: 10),
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: scheme.outlineVariant,
+                    borderRadius: BorderRadius.circular(999),
                   ),
                 ),
-                child: Row(
-                  children: [
-                    const Text(
-                      '发送历史',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 14, 12, 10),
+                  child: Row(
+                    children: [
+                      const Text(
+                        '发送历史',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
-                    ),
-                    const Spacer(),
-                    if (onClear != null && history.isNotEmpty)
-                      TextButton.icon(
-                        onPressed: () {
-                          Navigator.pop(context);
-                          onClear!();
-                        },
-                        icon: const Icon(Icons.delete_outline, size: 18),
-                        label: const Text('清空'),
-                      ),
-                  ],
+                      const Spacer(),
+                      if (onClear != null && history.isNotEmpty)
+                        TextButton.icon(
+                          onPressed: () {
+                            Navigator.pop(context);
+                            onClear!();
+                          },
+                          icon: const Icon(
+                            Icons.delete_outline_rounded,
+                            size: 18,
+                          ),
+                          label: const Text('清空'),
+                        ),
+                    ],
+                  ),
                 ),
-              ),
-              // 历史列表
-              Expanded(
-                child: history.isEmpty
-                    ? const Center(child: Text('暂无发送历史'))
-                    : ListView.builder(
-                        controller: scrollController,
-                        itemCount: history.length,
-                        itemBuilder: (context, index) {
-                          final item = history[index];
-                          return ListTile(
-                            title: Text(
-                              item,
-                              maxLines: 3,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(fontSize: 13),
-                            ),
-                            trailing: const Icon(
-                              Icons.arrow_forward_ios,
-                              size: 14,
-                            ),
-                            onTap: () {
-                              Navigator.pop(context);
-                              onSelect(item);
-                            },
-                          );
-                        },
-                      ),
-              ),
-            ],
+                Expanded(
+                  child: history.isEmpty
+                      ? const Center(child: Text('暂无发送历史'))
+                      : ListView.builder(
+                          controller: scrollController,
+                          itemCount: history.length,
+                          itemBuilder: (context, index) {
+                            final item = history[index];
+                            return ListTile(
+                              leading: const Icon(
+                                Icons.schedule_rounded,
+                                size: 18,
+                              ),
+                              title: Text(
+                                item,
+                                maxLines: 3,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 13),
+                              ),
+                              trailing: const Icon(
+                                Icons.arrow_forward_ios_rounded,
+                                size: 14,
+                              ),
+                              onTap: () {
+                                Navigator.pop(context);
+                                onSelect(item);
+                              },
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
           );
         },
       ),
@@ -157,16 +181,16 @@ class SendHistoryDropdown extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return IconButton(
+      tooltip: '发送历史',
+      onPressed: () => _showHistoryDialog(context),
       icon: Badge(
         isLabelVisible: history.isNotEmpty,
         label: Text(
           history.length.toString(),
           style: const TextStyle(fontSize: 10),
         ),
-        child: const Icon(Icons.history),
+        child: const Icon(Icons.history_rounded),
       ),
-      tooltip: '发送历史',
-      onPressed: () => _showHistoryDialog(context),
     );
   }
 }
