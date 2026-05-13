@@ -90,33 +90,28 @@ class _HomePageState extends State<HomePage> {
       return Row(
         children: [
           SizedBox(
-            width: 144,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 8, 0, 12),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(24),
-                child: NavigationRail(
-                  selectedIndex: _currentIndex,
-                  minWidth: 68,
-                  minExtendedWidth: 132,
-                  labelType: NavigationRailLabelType.selected,
-                  onDestinationSelected: (index) {
-                    setState(() => _currentIndex = index);
-                  },
-                  destinations: List.generate(
-                    _titles.length,
-                    (index) => NavigationRailDestination(
-                      icon: Icon(_icons[index]),
-                      label: Text(_titles[index]),
-                    ),
-                  ),
+            width: 68,
+            child: NavigationRail(
+              selectedIndex: _currentIndex,
+              minWidth: 56,
+              groupAlignment: -0.9,
+              labelType: NavigationRailLabelType.none,
+              useIndicator: true,
+              onDestinationSelected: (index) {
+                setState(() => _currentIndex = index);
+              },
+              destinations: List.generate(
+                _titles.length,
+                (index) => NavigationRailDestination(
+                  icon: Tooltip(message: _titles[index], child: Icon(_icons[index], size: 22)),
+                  label: Text(_titles[index]),
                 ),
               ),
             ),
           ),
           Expanded(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+              padding: const EdgeInsets.fromLTRB(4, 6, 8, 8),
               child: IndexedStack(index: _currentIndex, children: _pages),
             ),
           ),

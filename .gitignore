@@ -44,3 +44,27 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Local environment files
+android/local.properties
+
+# Flutter generated plugin registrants
+lib/generated_plugin_registrant.dart
+
+# Flutter ephemeral platform files
+**/Flutter/ephemeral/
+**/flutter/ephemeral/
+
+# Tooling and local assistant artifacts
+.specstory/
+
+# Local packaging outputs
+dist/
+android/build/
+linux/build/
+macos/build/
+windows/build/
+
+# OS temporary files
+Thumbs.db
+Desktop.ini

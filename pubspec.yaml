@@ -51,6 +51,11 @@ dependencies:
   # GBK编码支持
   fast_gbk: ^1.0.0
 
+  # RTSP 拉流播放
+  media_kit: ^1.1.11
+  media_kit_video: ^1.2.5
+  media_kit_libs_video: ^1.0.5
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
