@@ -1,7 +1,10 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/message_data.dart';
+import '../../core/theme/app_theme_controller.dart';
 import '../../services/network_tool_service.dart';
 import '../../services/send_history_service.dart';
 import '../../services/tcp_server_service.dart';
@@ -31,7 +34,6 @@ class _TcpServerPageState extends State<TcpServerPage>
   CharEncoding _encoding = CharEncoding.utf8;
   String? _selectedClientId;
   List<String> _sendHistory = [];
-  bool _configExpanded = true;
 
   @override
   void initState() {
@@ -54,7 +56,8 @@ class _TcpServerPageState extends State<TcpServerPage>
     final ips = await NetworkToolService.getLocalIPs();
     setState(() {
       _localIPs = ips;
-      if (ips.isNotEmpty) {
+      final selectedExists = ips.any((ip) => ip.address == _selectedIP);
+      if (!selectedExists && ips.isNotEmpty) {
         _selectedIP = ips.first.address;
       }
     });
@@ -70,121 +73,100 @@ class _TcpServerPageState extends State<TcpServerPage>
   Widget build(BuildContext context) {
     return Consumer<TcpServerService>(
       builder: (context, service, child) {
-        return LayoutBuilder(
-          builder: (context, constraints) {
-            final landscape =
-                constraints.maxWidth > constraints.maxHeight &&
-                constraints.maxWidth >= 700;
-            final keyboardVisible = View.of(context).viewInsets.bottom > 0;
-            final compactForInput = keyboardVisible && _sendFocusNode.hasFocus;
-
-            final errorWidget = service.errorMessage != null
-                ? Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: ErrorDisplay(
-                      errorMessage: service.errorMessage,
-                      onDismiss: service.clearError,
-                    ),
-                  )
-                : null;
-
-            if (landscape) {
-              return SplitView(
-                mainFlex: 7,
-                sideFlex: 4,
-                main: Column(
-                  children: [
-                    CompactStatisticsPanel(
-                      statistics: service.statistics,
-                      onReset: service.resetStatistics,
-                    ),
-                    _buildTabStrip(service),
-                    Expanded(child: _buildTabContent(service)),
-                  ],
+        final errorWidget = service.errorMessage != null
+            ? Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: ErrorDisplay(
+                  errorMessage: service.errorMessage,
+                  onDismiss: service.clearError,
                 ),
-                side: Column(
-                  children: [
-                    _buildServerConfig(service),
-                    if (errorWidget != null) errorWidget,
-                    _buildFormatSelector(),
-                    _buildSendArea(service),
-                  ],
-                ),
-              );
-            }
+              )
+            : null;
 
-            return Column(
-              children: [
-                if (!compactForInput) _buildServerConfig(service),
-                if (!compactForInput && errorWidget != null) errorWidget,
-                if (!compactForInput)
-                  CompactStatisticsPanel(
-                    statistics: service.statistics,
-                    onReset: service.resetStatistics,
-                  ),
-                if (!compactForInput) _buildFormatSelector(),
-                if (!compactForInput) _buildTabStrip(service),
-                Expanded(child: _buildTabContent(service)),
-                const SizedBox(height: 8),
-                _buildSendArea(service),
-              ],
-            );
-          },
+        return ProtocolScreenScaffold(
+          topSummary: Column(
+            children: [
+              _buildTopActions(service),
+              if (errorWidget != null) errorWidget,
+            ],
+          ),
+          mainContent: Column(
+            children: [
+              _buildTabStrip(service),
+              Expanded(child: _buildTabContent(service)),
+            ],
+          ),
+          sideContent: Column(
+            children: [
+              _buildServerSummary(service),
+              _buildFormatSelector(),
+              _buildSendArea(service),
+            ],
+          ),
         );
       },
     );
   }
 
+  Widget _buildTopActions(TcpServerService service) {
+    return Row(
+      children: [
+        IconButton.outlined(
+          onPressed: () => _showConfigSheet(service),
+          icon: const Icon(Icons.tune_rounded),
+          tooltip: '服务配置',
+        ),
+        const SizedBox(width: 8),
+        Builder(
+          builder: (context) {
+            final themeController = Provider.of<AppThemeController?>(context);
+            final isDark = themeController?.themeMode == ThemeMode.dark;
+            return IconButton.outlined(
+              onPressed: themeController?.toggleLightDark,
+              icon: Icon(isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded),
+              tooltip: '切换明暗主题',
+            );
+          },
+        ),
+        const SizedBox(width: 8),
+        IconButton.outlined(
+          onPressed: service.isRunning
+              ? () => service.isPaused ? service.resume() : service.pause()
+              : null,
+          icon: Icon(service.isPaused ? Icons.play_arrow_rounded : Icons.pause_rounded),
+          tooltip: '暂停/恢复',
+        ),
+        const SizedBox(width: 8),
+        IconButton.outlined(
+          onPressed: service.clearMessages,
+          icon: const Icon(Icons.delete_sweep_rounded),
+          tooltip: '清空消息',
+        ),
+      ],
+    );
+  }
+
+  Widget _buildServerSummary(TcpServerService service) {
+    return ConnectionSummaryBar(
+      isConnected: service.isRunning,
+      statusLabel: service.isRunning ? '服务运行中' : '服务未启动',
+      endpointLabel: '$_selectedIP:${_portController.text.trim()}',
+      speedLabel: '↑${service.statistics.formattedSentBytes} ↓${service.statistics.formattedReceivedBytes}',
+      modeLabel: _selectedClientId != null ? '单播模式' : '广播模式',
+      onToggleConnection: () => _toggleServer(service),
+      showConnectButton: false,
+      isPaused: service.isPaused,
+      onTogglePause: null,
+    );
+  }
+
   Widget _buildServerConfig(TcpServerService service) {
+    final lowPortWarning = _buildLowPortWarning(_portController.text.trim());
+
     return AppPanel(
       child: Column(
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      SectionBadge(
-                        icon: service.isRunning
-                            ? Icons.settings_input_component_rounded
-                            : Icons.power_settings_new_rounded,
-                        label: service.isRunning ? '服务运行中' : '服务未启动',
-                        color: service.isRunning
-                            ? const Color(0xFF059669)
-                            : Theme.of(context).colorScheme.outline,
-                      ),
-                      const SizedBox(width: 8),
-                      SectionBadge(
-                        icon: Icons.dns_rounded,
-                        label: '$_selectedIP:${_portController.text.trim()}',
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                      const SizedBox(width: 8),
-                      SectionBadge(
-                        icon: Icons.devices_rounded,
-                        label: '${service.clientCount} 个客户端',
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              IconButton(
-                onPressed: () {
-                  setState(() => _configExpanded = !_configExpanded);
-                },
-                icon: Icon(
-                  _configExpanded
-                      ? Icons.keyboard_arrow_up_rounded
-                      : Icons.keyboard_arrow_down_rounded,
-                ),
-              ),
-            ],
-          ),
-          if (_configExpanded) ...[
-            const SizedBox(height: 10),
+          const SizedBox(height: 10),
             Row(
               children: [
                 Expanded(
@@ -193,10 +175,14 @@ class _TcpServerPageState extends State<TcpServerPage>
                     initialValue: _selectedIP,
                     decoration: const InputDecoration(labelText: '本机 IP'),
                     items: _localIPs.map((ip) {
+                      final isAnyIpv4 =
+                          ip.address == NetworkToolService.anyIpv4Address;
                       return DropdownMenuItem<String>(
                         value: ip.address,
                         child: Text(
-                          '${ip.address} (${ip.name})',
+                          isAnyIpv4
+                              ? '${ip.address} (${ip.name})'
+                              : '${ip.address} (${ip.name})',
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(fontSize: 13),
                         ),
@@ -218,11 +204,15 @@ class _TcpServerPageState extends State<TcpServerPage>
                     decoration: const InputDecoration(labelText: '端口'),
                     keyboardType: TextInputType.number,
                     enabled: !service.isRunning,
+                    onChanged: (_) => setState(() {}),
                   ),
                 ),
               ],
             ),
-          ],
+            if (lowPortWarning != null) ...[
+              const SizedBox(height: 8),
+              lowPortWarning,
+            ],
           const SizedBox(height: 10),
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
@@ -262,6 +252,54 @@ class _TcpServerPageState extends State<TcpServerPage>
                   ),
                 ),
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget? _buildLowPortWarning(String value) {
+    if (!Platform.isAndroid) {
+      return null;
+    }
+
+    final port = int.tryParse(value);
+    if (port == null || port >= 1024 || port < AppConstants.minBindablePort) {
+      return null;
+    }
+
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF59E0B).withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: const Color(0xFFF59E0B).withValues(alpha: 0.28),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.only(top: 1),
+            child: Icon(
+              Icons.warning_amber_rounded,
+              size: 16,
+              color: Color(0xFFD97706),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              '低于 1024 的端口在 Android 上通常需要更高权限，普通设备可能无法监听成功。',
+              style: TextStyle(
+                fontSize: 12,
+                height: 1.35,
+                color: scheme.onSurface,
+              ),
             ),
           ),
         ],
@@ -333,6 +371,7 @@ class _TcpServerPageState extends State<TcpServerPage>
           encoding: _encoding,
           isPaused: service.isPaused,
           onClear: service.clearMessages,
+          showToolbar: false,
         ),
         _buildClientList(service),
         _buildConnectionHistory(service),
@@ -451,27 +490,22 @@ class _TcpServerPageState extends State<TcpServerPage>
   }
 
   Widget _buildSendArea(TcpServerService service) {
-    final target = _selectedClientId != null
-        ? service.clients[_selectedClientId]?.displayAddress ?? '未知客户端'
-        : '广播模式';
-
     return AppPanel(
       margin: EdgeInsets.zero,
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
       child: Column(
         children: [
+          TextField(
+            controller: _sendController,
+            focusNode: _sendFocusNode,
+            decoration: const InputDecoration(hintText: '输入要发送的数据...'),
+            maxLines: 2,
+            minLines: 1,
+          ),
+          const SizedBox(height: 8),
           Row(
             children: [
-              Expanded(
-                child: SectionBadge(
-                  icon: _selectedClientId != null
-                      ? Icons.filter_1_rounded
-                      : Icons.campaign_rounded,
-                  label: target,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-              ),
-              const SizedBox(width: 8),
+              const Spacer(),
               SendHistoryDropdown(
                 history: _sendHistory,
                 onSelect: (value) => _sendController.text = value,
@@ -480,52 +514,52 @@ class _TcpServerPageState extends State<TcpServerPage>
                   _loadSendHistory();
                 },
               ),
+              const SizedBox(width: 8),
+              FilledButton.icon(
+                onPressed: service.isRunning && service.clientCount > 0
+                    ? () => _send(service)
+                    : null,
+                icon: const Icon(Icons.send_rounded, size: 18),
+                label: Text(_selectedClientId != null ? '发送' : '广播'),
+              ),
             ],
-          ),
-          const SizedBox(height: 10),
-          TextField(
-            controller: _sendController,
-            focusNode: _sendFocusNode,
-            decoration: const InputDecoration(hintText: '输入要发送的数据...'),
-            maxLines: 3,
-            minLines: 1,
-          ),
-          const SizedBox(height: 10),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: service.isRunning && service.clientCount > 0
-                  ? () => _send(service)
-                  : null,
-              icon: const Icon(Icons.send_rounded, size: 18),
-              label: Text(_selectedClientId != null ? '发送到客户端' : '广播'),
-            ),
           ),
         ],
       ),
     );
   }
 
+  Future<void> _showConfigSheet(TcpServerService service) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => Consumer<TcpServerService>(builder: (context, liveService, _) => Padding(
+        padding: EdgeInsets.only(
+          left: 16,
+          right: 16,
+          top: 16,
+          bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+        ),
+        child: SingleChildScrollView(child: _buildServerConfig(liveService)),
+      )),
+    );
+  }
+
   Future<void> _toggleServer(TcpServerService service) async {
     if (service.isRunning) {
       await service.stop();
-      if (mounted) {
-        setState(() => _configExpanded = true);
-      }
       return;
     }
 
     final port =
         int.tryParse(_portController.text.trim()) ??
         AppConstants.defaultTcpPort;
-    if (port < AppConstants.minPort || port > AppConstants.maxPort) {
+    if (port < AppConstants.minBindablePort || port > AppConstants.maxPort) {
       return;
     }
 
     await service.start(_selectedIP, port);
-    if (mounted && service.isRunning) {
-      setState(() => _configExpanded = false);
-    }
+    if (mounted) setState(() {});
   }
 
   Future<void> _send(TcpServerService service) async {

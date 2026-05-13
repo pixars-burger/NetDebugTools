@@ -1,0 +1,43 @@
+[Version]
+Class=IEXPRESS
+SEDVersion=3
+[Options]
+PackagePurpose=InstallApp
+ShowInstallProgramWindow=1
+HideExtractAnimation=0
+UseLongFileName=1
+InsideCompressed=0
+CAB_FixedSize=0
+CAB_ResvCodeSigning=0
+RebootMode=N
+CheckAdminRights=0
+Strings=Strings
+InstallPrompt=%InstallPrompt%
+DisplayLicense=%DisplayLicense%
+FinishMessage=%FinishMessage%
+TargetName=%TargetName%
+FriendlyName=%FriendlyName%
+AppLaunched=%AppLaunched%
+PostInstallCmd=%PostInstallCmd%
+AdminQuietInstCmd=%AdminQuietInstCmd%
+UserQuietInstCmd=%UserQuietInstCmd%
+SourceFiles=SourceFiles
+[Strings]
+InstallPrompt=
+DisplayLicense=
+FinishMessage=NetDebugTool installer finished.
+TargetName=D:\WorkSpace\Flutter_App\net_debug_tool\dist\windows\NetDebugToolSetup.exe
+FriendlyName=NetDebugTool Installer
+AppLaunched=powershell.exe -ExecutionPolicy Bypass -File install_windows.ps1
+PostInstallCmd=<None>
+AdminQuietInstCmd=
+UserQuietInstCmd=
+FILE0=install_windows.ps1
+FILE1=net_debug_tool_windows_release.zip
+[SourceFiles]
+SourceFiles0=D:\WorkSpace\Flutter_App\net_debug_tool\windows\installer\
+SourceFiles1=D:\WorkSpace\Flutter_App\net_debug_tool\dist\windows\
+[SourceFiles0]
+%FILE0%=
+[SourceFiles1]
+%FILE1%=

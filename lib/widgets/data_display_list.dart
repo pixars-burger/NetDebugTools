@@ -11,6 +11,7 @@ class DataDisplayList extends StatefulWidget {
   final bool isPaused;
   final VoidCallback? onClear;
   final ScrollController? scrollController;
+  final bool showToolbar;
 
   const DataDisplayList({
     super.key,
@@ -20,6 +21,7 @@ class DataDisplayList extends StatefulWidget {
     this.isPaused = false,
     this.onClear,
     this.scrollController,
+    this.showToolbar = true,
   });
 
   @override
@@ -93,7 +95,7 @@ class _DataDisplayListState extends State<DataDisplayList> {
       ),
       child: Column(
         children: [
-          _buildToolbar(context),
+          if (widget.showToolbar) _buildToolbar(context),
           Expanded(
             child: widget.messages.isEmpty
                 ? _buildEmptyState(context)

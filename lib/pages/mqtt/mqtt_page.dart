@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:mqtt_client/mqtt_client.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/theme/app_theme_controller.dart';
 import '../../models/message_data.dart';
 import '../../services/mqtt_service.dart';
 import '../../services/send_history_service.dart';
@@ -33,10 +34,8 @@ class _MqttPageState extends State<MqttPage>
 
   bool _useWebSocket = false;
   bool _useWss = false;
-  bool _configExpanded = true;
   MqttQos _subscribeQos = MqttQos.atMostOnce;
   MqttQos _publishQos = MqttQos.atMostOnce;
-  DataFormat _sendFormat = DataFormat.text;
   DataFormat _receiveFormat = DataFormat.text;
   CharEncoding _encoding = CharEncoding.utf8;
 
@@ -46,7 +45,7 @@ class _MqttPageState extends State<MqttPage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 2, vsync: this);
     _loadSavedConfig();
     _loadSendHistory();
   }
@@ -94,251 +93,95 @@ class _MqttPageState extends State<MqttPage>
   Widget build(BuildContext context) {
     return Consumer<MqttService>(
       builder: (context, service, child) {
-        return LayoutBuilder(
-          builder: (context, constraints) {
-            final landscape =
-                constraints.maxWidth > constraints.maxHeight &&
-                constraints.maxWidth >= 700;
-            final keyboardVisible = View.of(context).viewInsets.bottom > 0;
-            final compactForInput =
-                keyboardVisible && _publishMessageFocusNode.hasFocus;
-
-            final errorWidget = service.errorMessage != null
-                ? Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: ErrorDisplay(
-                      errorMessage: service.errorMessage,
-                      onDismiss: service.clearError,
-                    ),
-                  )
-                : null;
-
-            if (landscape) {
-              return SplitView(
-                mainFlex: 7,
-                sideFlex: 4,
-                main: Column(
-                  children: [
-                    CompactStatisticsPanel(
-                      statistics: service.statistics,
-                      onReset: service.resetStatistics,
-                    ),
-                    _buildTabStrip(service),
-                    Expanded(child: _buildLandscapeMainContent(service)),
-                  ],
+        final errorWidget = service.errorMessage != null
+            ? Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: ErrorDisplay(
+                  errorMessage: service.errorMessage,
+                  onDismiss: service.clearError,
                 ),
-                side: Column(
-                  children: [
-                    _buildConnectionConfig(service),
-                    if (errorWidget != null) errorWidget,
-                    _buildLandscapeSideContent(service),
-                  ],
-                ),
-              );
-            }
+              )
+            : null;
 
-            return Column(
-              children: [
-                if (!compactForInput) _buildConnectionConfig(service),
-                if (!compactForInput && errorWidget != null) errorWidget,
-                if (!compactForInput)
-                  CompactStatisticsPanel(
-                    statistics: service.statistics,
-                    onReset: service.resetStatistics,
-                  ),
-                if (!compactForInput) _buildTabStrip(service),
-                Expanded(child: _buildPortraitTabContent(service)),
-              ],
-            );
-          },
+        return ProtocolScreenScaffold(
+          topSummary: Column(
+            children: [
+              _buildTopActions(service),
+              if (errorWidget != null) errorWidget,
+            ],
+          ),
+          mainContent: Column(
+            children: [
+              _buildTabStrip(service),
+              Expanded(child: _buildPortraitTabContent(service)),
+            ],
+          ),
+          sideContent: Column(
+            children: [
+              _buildConnectionSummary(service),
+              _buildFormatSelector(),
+              _buildPublishComposer(service),
+            ],
+          ),
         );
       },
     );
   }
 
-  Widget _buildConnectionConfig(MqttService service) {
+  Widget _buildConnectionSummary(MqttService service) {
     final summary =
         '${_hostController.text.trim()}:${_portController.text.trim()}';
+    final speed =
+        '↑${service.statistics.formattedSentBytes} ↓${service.statistics.formattedReceivedBytes}';
 
-    return AppPanel(
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      SectionBadge(
-                        icon: service.isConnected
-                            ? Icons.cloud_done_rounded
-                            : Icons.cloud_off_rounded,
-                        label: service.isConnected
-                            ? 'Broker 已连接'
-                            : 'Broker 未连接',
-                        color: service.isConnected
-                            ? const Color(0xFF059669)
-                            : Theme.of(context).colorScheme.outline,
-                      ),
-                      const SizedBox(width: 8),
-                      SectionBadge(
-                        icon: _useWebSocket
-                            ? Icons.language_rounded
-                            : Icons.settings_ethernet_rounded,
-                        label: _useWebSocket
-                            ? (_useWss ? 'WSS' : 'WebSocket')
-                            : 'TCP',
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                      const SizedBox(width: 8),
-                      SectionBadge(
-                        icon: Icons.dns_rounded,
-                        label: summary,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              IconButton(
-                onPressed: () {
-                  setState(() => _configExpanded = !_configExpanded);
-                },
-                icon: Icon(
-                  _configExpanded
-                      ? Icons.keyboard_arrow_up_rounded
-                      : Icons.keyboard_arrow_down_rounded,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                FilledButton.icon(
-                  onPressed: () => _toggleConnection(service),
-                  icon: Icon(
-                    service.isConnected
-                        ? Icons.link_off_rounded
-                        : Icons.link_rounded,
-                  ),
-                  label: Text(service.isConnected ? '断开连接' : '连接 Broker'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: service.isConnected
-                        ? Theme.of(context).colorScheme.error
-                        : null,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                IconButton.filledTonal(
-                  onPressed: service.isConnected
-                      ? () {
-                          service.isPaused ? service.resume() : service.pause();
-                        }
-                      : null,
-                  icon: Icon(
-                    service.isPaused
-                        ? Icons.play_arrow_rounded
-                        : Icons.pause_rounded,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (_configExpanded) ...[
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  flex: 2,
-                  child: TextField(
-                    controller: _hostController,
-                    decoration: const InputDecoration(labelText: '服务器地址'),
-                    enabled: !service.isConnected,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: TextField(
-                    controller: _portController,
-                    decoration: const InputDecoration(labelText: '端口'),
-                    keyboardType: TextInputType.number,
-                    enabled: !service.isConnected,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                FilterChip(
-                  label: const Text('WebSocket'),
-                  selected: _useWebSocket,
-                  onSelected: service.isConnected
-                      ? null
-                      : (value) {
-                          setState(() {
-                            _useWebSocket = value;
-                            if (!_useWebSocket) {
-                              _useWss = false;
-                              _portController.text = '1883';
-                            } else {
-                              _portController.text = _useWss ? '8084' : '8083';
-                            }
-                          });
-                        },
-                ),
-                FilterChip(
-                  label: const Text('WSS'),
-                  selected: _useWss,
-                  onSelected: (!_useWebSocket || service.isConnected)
-                      ? null
-                      : (value) {
-                          setState(() {
-                            _useWss = value;
-                            _portController.text = _useWss ? '8084' : '8083';
-                          });
-                        },
-                ),
-              ],
-            ),
-            if (_useWebSocket) ...[
-              const SizedBox(height: 10),
-              TextField(
-                controller: _wsPathController,
-                decoration: const InputDecoration(labelText: 'WS 路径'),
-                enabled: !service.isConnected,
-              ),
-            ],
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _usernameController,
-                    decoration: const InputDecoration(labelText: '用户名（可选）'),
-                    enabled: !service.isConnected,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: TextField(
-                    controller: _passwordController,
-                    decoration: const InputDecoration(labelText: '密码（可选）'),
-                    obscureText: true,
-                    enabled: !service.isConnected,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ],
-      ),
+    return ConnectionSummaryBar(
+      isConnected: service.isConnected,
+      statusLabel: service.isConnected ? 'Broker 已连接' : 'Broker 未连接',
+      endpointLabel: summary,
+      speedLabel: speed,
+      modeLabel: '文本发布',
+      onToggleConnection: () => _toggleConnection(service),
+      showConnectButton: false,
+      isPaused: service.isPaused,
+      onTogglePause: null,
+    );
+  }
+
+  Widget _buildTopActions(MqttService service) {
+    return Row(
+      children: [
+        IconButton.outlined(
+          onPressed: () => _showConfigSheet(service),
+          icon: const Icon(Icons.tune_rounded),
+          tooltip: '连接配置',
+        ),
+        const SizedBox(width: 8),
+        Builder(
+          builder: (context) {
+            final themeController = Provider.of<AppThemeController?>(context);
+            final isDark = themeController?.themeMode == ThemeMode.dark;
+            return IconButton.outlined(
+              onPressed: themeController?.toggleLightDark,
+              icon: Icon(isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded),
+              tooltip: '切换明暗主题',
+            );
+          },
+        ),
+        const SizedBox(width: 8),
+        IconButton.outlined(
+          onPressed: service.isConnected
+              ? () => service.isPaused ? service.resume() : service.pause()
+              : null,
+          icon: Icon(service.isPaused ? Icons.play_arrow_rounded : Icons.pause_rounded),
+          tooltip: '暂停/恢复',
+        ),
+        const SizedBox(width: 8),
+        IconButton.outlined(
+          onPressed: service.clearMessages,
+          icon: const Icon(Icons.delete_sweep_rounded),
+          tooltip: '清空消息',
+        ),
+      ],
     );
   }
 
@@ -359,49 +202,8 @@ class _MqttPageState extends State<MqttPage>
         tabs: [
           Tab(height: 34, child: Text('消息 ${service.messages.length}')),
           Tab(height: 34, child: Text('订阅 ${service.subscriptions.length}')),
-          const Tab(height: 34, child: Text('发布')),
         ],
       ),
-    );
-  }
-
-  Widget _buildLandscapeMainContent(MqttService service) {
-    return AnimatedBuilder(
-      animation: _tabController,
-      builder: (context, child) {
-        switch (_tabController.index) {
-          case 1:
-            return _buildSubscriptionsList(service);
-          case 2:
-            return _buildPublishHint();
-          case 0:
-          default:
-            return DataDisplayList(
-              messages: service.messages,
-              displayFormat: _receiveFormat,
-              encoding: _encoding,
-              isPaused: service.isPaused,
-              onClear: service.clearMessages,
-            );
-        }
-      },
-    );
-  }
-
-  Widget _buildLandscapeSideContent(MqttService service) {
-    return AnimatedBuilder(
-      animation: _tabController,
-      builder: (context, child) {
-        switch (_tabController.index) {
-          case 1:
-            return _buildSubscribePanel(service);
-          case 2:
-            return _buildPublishPanel(service);
-          case 0:
-          default:
-            return _buildMessageControlPanel(service);
-        }
-      },
     );
   }
 
@@ -411,19 +213,13 @@ class _MqttPageState extends State<MqttPage>
       children: [
         _buildMessageTab(service),
         _buildSubscribeTab(service),
-        _buildPublishTab(service),
       ],
     );
   }
 
   Widget _buildMessageTab(MqttService service) {
-    final keyboardVisible = View.of(context).viewInsets.bottom > 0;
-    final compactForInput =
-        keyboardVisible && _publishMessageFocusNode.hasFocus;
-
     return Column(
       children: [
-        if (!compactForInput) _buildMessageControlRow(),
         Expanded(
           child: DataDisplayList(
             messages: service.messages,
@@ -431,43 +227,14 @@ class _MqttPageState extends State<MqttPage>
             encoding: _encoding,
             isPaused: service.isPaused,
             onClear: service.clearMessages,
+            showToolbar: false,
           ),
         ),
       ],
     );
   }
 
-  Widget _buildMessageControlPanel(MqttService service) {
-    return Column(
-      children: [
-        _buildMessageControlRow(),
-        AppPanel(
-          margin: EdgeInsets.zero,
-          padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SectionBadge(
-                icon: Icons.tips_and_updates_rounded,
-                label: service.isPaused ? '消息接收已暂停' : '当前显示实时消息',
-                color: Theme.of(context).colorScheme.primary,
-              ),
-              const SizedBox(height: 10),
-              Text(
-                '横屏下消息列表固定在中间主区域，格式和清空操作集中到右侧控制区。',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildMessageControlRow() {
+  Widget _buildFormatSelector() {
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
       child: SingleChildScrollView(
@@ -606,85 +373,42 @@ class _MqttPageState extends State<MqttPage>
     );
   }
 
-  Widget _buildPublishTab(MqttService service) {
-    return ListView(
-      padding: EdgeInsets.zero,
-      children: [_buildPublishPanel(service)],
-    );
-  }
-
-  Widget _buildPublishPanel(MqttService service) {
+  Widget _buildPublishComposer(MqttService service) {
     return AppPanel(
       margin: EdgeInsets.zero,
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
       child: Column(
         children: [
-          Row(
-            children: [
-              const SectionBadge(icon: Icons.publish_rounded, label: '消息发布'),
-              const Spacer(),
-              if (_topicHistory.isNotEmpty)
-                PopupMenuButton<String>(
-                  tooltip: '主题历史',
-                  icon: const Icon(Icons.history_rounded),
-                  onSelected: (value) {
-                    _publishTopicController.text = value;
-                  },
-                  itemBuilder: (context) => _topicHistory
-                      .map(
-                        (topic) => PopupMenuItem<String>(
-                          value: topic,
-                          child: Text(topic, overflow: TextOverflow.ellipsis),
-                        ),
-                      )
-                      .toList(),
-                ),
-            ],
+          TextField(
+            controller: _publishTopicController,
+            decoration: const InputDecoration(labelText: '发布主题', isDense: true),
           ),
           const SizedBox(height: 10),
           TextField(
-            controller: _publishTopicController,
-            decoration: const InputDecoration(labelText: '发布主题'),
+            controller: _publishMessageController,
+            focusNode: _publishMessageFocusNode,
+            decoration: const InputDecoration(labelText: '消息内容', isDense: true),
+            maxLines: 2,
+            minLines: 1,
           ),
-          const SizedBox(height: 10),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                DropdownButton<MqttQos>(
-                  value: _publishQos,
-                  items: MqttQos.values.take(3).map((qos) {
-                    return DropdownMenuItem<MqttQos>(
-                      value: qos,
-                      child: Text('QoS ${qos.index}'),
-                    );
-                  }).toList(),
-                  onChanged: (value) {
-                    if (value != null) {
-                      setState(() => _publishQos = value);
-                    }
-                  },
-                ),
-                const SizedBox(width: 8),
-                FormatSelector(
-                  label: '格式',
-                  value: _sendFormat,
-                  onChanged: (format) => setState(() => _sendFormat = format),
-                  dense: true,
-                ),
-                const SizedBox(width: 8),
-                EncodingSelector(
-                  label: '编码',
-                  value: _encoding,
-                  onChanged: (encoding) => setState(() => _encoding = encoding),
-                  dense: true,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              DropdownButton<MqttQos>(
+                value: _publishQos,
+                items: MqttQos.values.take(3).map((qos) {
+                  return DropdownMenuItem<MqttQos>(
+                    value: qos,
+                    child: Text('QoS ${qos.index}'),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  if (value != null) {
+                    setState(() => _publishQos = value);
+                  }
+                },
+              ),
+              const Spacer(),
               SendHistoryDropdown(
                 history: _sendHistory,
                 onSelect: (value) => _publishMessageController.text = value,
@@ -694,53 +418,125 @@ class _MqttPageState extends State<MqttPage>
                 },
               ),
               const SizedBox(width: 8),
-              Expanded(
-                child: TextField(
-                  controller: _publishMessageController,
-                  focusNode: _publishMessageFocusNode,
-                  decoration: const InputDecoration(labelText: '消息内容'),
-                  maxLines: 4,
-                  minLines: 2,
-                ),
+              FilledButton.icon(
+                onPressed: service.isConnected ? () => _publish(service) : null,
+                icon: const Icon(Icons.send_rounded, size: 18),
+                label: const Text('发布'),
               ),
             ],
-          ),
-          const SizedBox(height: 10),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: service.isConnected ? () => _publish(service) : null,
-              icon: const Icon(Icons.send_rounded, size: 18),
-              label: const Text('发布'),
-            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildPublishHint() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Text(
-          '发布操作已移动到右侧控制区，主区域继续保留给消息和订阅内容。',
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: 13,
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
+  Future<void> _showConfigSheet(MqttService service) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) {
+        return Consumer<MqttService>(
+          builder: (context, liveService, _) => Padding(
+          padding: EdgeInsets.only(
+            left: 16,
+            right: 16,
+            top: 16,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 16,
           ),
+          child: SingleChildScrollView(child: _buildConfigForm(liveService)),
+        ));
+      },
+    );
+  }
+
+  Widget _buildConfigForm(MqttService service) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(children: [Text('连接配置', style: Theme.of(context).textTheme.titleMedium)]),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              flex: 2,
+              child: TextField(controller: _hostController, decoration: const InputDecoration(labelText: '服务器地址'), enabled: !service.isConnected),
+            ),
+            const SizedBox(width: 8),
+            Expanded(child: TextField(controller: _portController, decoration: const InputDecoration(labelText: '端口'), keyboardType: TextInputType.number, enabled: !service.isConnected)),
+          ],
         ),
-      ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            FilterChip(
+              label: const Text('WebSocket'),
+              selected: _useWebSocket,
+              onSelected: service.isConnected
+                  ? null
+                  : (value) {
+                      setState(() {
+                        _useWebSocket = value;
+                        if (!_useWebSocket) {
+                          _useWss = false;
+                          _portController.text = '1883';
+                        } else {
+                          _portController.text = _useWss ? '8084' : '8083';
+                        }
+                      });
+                    },
+            ),
+            FilterChip(
+              label: const Text('WSS'),
+              selected: _useWss,
+              onSelected: (!_useWebSocket || service.isConnected)
+                  ? null
+                  : (value) {
+                      setState(() {
+                        _useWss = value;
+                        _portController.text = _useWss ? '8084' : '8083';
+                      });
+                    },
+            ),
+          ],
+        ),
+        if (_useWebSocket) ...[
+          const SizedBox(height: 10),
+          TextField(controller: _wsPathController, decoration: const InputDecoration(labelText: 'WS 路径'), enabled: !service.isConnected),
+        ],
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(child: TextField(controller: _usernameController, decoration: const InputDecoration(labelText: '用户名（可选）'), enabled: !service.isConnected)),
+            const SizedBox(width: 8),
+            Expanded(child: TextField(controller: _passwordController, decoration: const InputDecoration(labelText: '密码（可选）'), obscureText: true, enabled: !service.isConnected)),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            FilledButton.icon(
+              onPressed: () => _toggleConnection(service),
+              icon: Icon(service.isConnected ? Icons.link_off_rounded : Icons.link_rounded),
+              label: Text(service.isConnected ? '断开' : '连接'),
+            ),
+            const SizedBox(width: 8),
+            IconButton.filledTonal(
+              onPressed: service.isConnected
+                  ? () => service.isPaused ? service.resume() : service.pause()
+                  : null,
+              icon: Icon(service.isPaused ? Icons.play_arrow_rounded : Icons.pause_rounded),
+            ),
+          ],
+        ),
+      ],
     );
   }
 
   Future<void> _toggleConnection(MqttService service) async {
     if (service.isConnected) {
       await service.disconnect();
-      if (mounted) {
-        setState(() => _configExpanded = true);
-      }
       return;
     }
 
@@ -774,9 +570,7 @@ class _MqttPageState extends State<MqttPage>
       useWss: _useWss,
       wsPath: wsPath.isNotEmpty ? wsPath : '/mqtt',
     );
-    if (mounted && service.isConnected) {
-      setState(() => _configExpanded = false);
-    }
+    if (mounted) setState(() {});
   }
 
   Future<void> _publish(MqttService service) async {
@@ -786,7 +580,11 @@ class _MqttPageState extends State<MqttPage>
       return;
     }
 
-    final result = DataConverter.stringToBytes(message, _sendFormat, _encoding);
+    final result = DataConverter.stringToBytes(
+      message,
+      DataFormat.text,
+      _encoding,
+    );
     if (!result.isSuccess) {
       return;
     }

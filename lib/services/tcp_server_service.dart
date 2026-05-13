@@ -96,10 +96,30 @@ class TcpServerService extends ChangeNotifier {
       return true;
     } catch (e) {
       _state = ServerState.error;
-      _errorMessage = '启动服务器失败: $e';
+      _errorMessage = _mapBindError(e);
       notifyListeners();
       return false;
     }
+  }
+
+  String _mapBindError(Object error) {
+    final text = error.toString().toLowerCase();
+    if (text.contains('permission') ||
+        text.contains('access denied') ||
+        text.contains('operation not permitted') ||
+        text.contains('eacces') ||
+        text.contains('eaddrinuse') ||
+        text.contains('address already in use') ||
+        text.contains('only one usage of each socket address')) {
+      return '该端口需要更高权限或已被占用';
+    }
+    if (text.contains('cannot assign requested address') ||
+        text.contains('eaddrnotavail') ||
+        text.contains('requested address') ||
+        text.contains('address not available')) {
+      return '绑定地址不可用';
+    }
+    return '启动服务器失败: $error';
   }
 
   /// 停止服务器

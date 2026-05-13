@@ -2,6 +2,7 @@
 library;
 
 export 'home_page.dart';
+export 'rtsp/rtsp_page.dart';
 export 'tcp_client/tcp_client_page.dart';
 export 'tcp_server/tcp_server_page.dart';
 export 'udp/udp_page.dart';

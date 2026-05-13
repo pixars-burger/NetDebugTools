@@ -3,9 +3,13 @@ import '../utils/constants.dart';
 
 /// 网络工具服务
 class NetworkToolService {
+  static const String anyIpv4Address = '0.0.0.0';
+
   /// 获取本机所有可用的IPv4地址
   static Future<List<NetworkInterfaceInfo>> getLocalIPs() async {
-    final result = <NetworkInterfaceInfo>[];
+    final result = <NetworkInterfaceInfo>[
+      NetworkInterfaceInfo(name: '所有网卡', address: anyIpv4Address),
+    ];
 
     try {
       final interfaces = await NetworkInterface.list(
@@ -17,19 +21,18 @@ class NetworkToolService {
       for (final interface in interfaces) {
         for (final addr in interface.addresses) {
           if (!addr.isLoopback && addr.type == InternetAddressType.IPv4) {
-            result.add(
-              NetworkInterfaceInfo(name: interface.name, address: addr.address),
+            final info = NetworkInterfaceInfo(
+              name: interface.name,
+              address: addr.address,
             );
+            if (!result.any((item) => item.address == info.address)) {
+              result.add(info);
+            }
           }
         }
       }
     } catch (e) {
       // 获取失败时返回空列表
-    }
-
-    // 如果没有找到任何IP，添加通配地址
-    if (result.isEmpty) {
-      result.add(NetworkInterfaceInfo(name: '所有接口', address: '0.0.0.0'));
     }
 
     return result;

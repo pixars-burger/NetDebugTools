@@ -7,8 +7,10 @@ class AppConstants {
   static const int defaultMqttPort = 1883;
   static const int defaultMqttWsPort = 8083;
   static const int defaultMqttWssPort = 8084;
+  static const String defaultRtspUrl = 'rtsp://';
 
   static const int minPort = 1024;
+  static const int minBindablePort = 1;
   static const int maxPort = 65535;
 
   static const int connectionTimeout = 10;
@@ -32,6 +34,7 @@ class AppConstants {
   static const String prefTcpServerHistory = 'tcp_server_send_history';
   static const String prefUdpHistory = 'udp_send_history';
   static const String prefMqttHistory = 'mqtt_send_history';
+  static const String prefRtspHistory = 'rtsp_history';
 
   static const String prefMqttHost = 'mqtt_host';
   static const String prefMqttPort = 'mqtt_port';

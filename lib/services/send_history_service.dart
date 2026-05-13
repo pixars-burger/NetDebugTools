@@ -113,6 +113,19 @@ class SendHistoryService {
     await clearHistory(AppConstants.prefMqttHistory);
   }
 
+  /// 获取RTSP地址历史
+  List<String> get rtspHistory => getHistory(AppConstants.prefRtspHistory);
+
+  /// 添加RTSP地址历史
+  Future<void> addRtspHistory(String value) async {
+    await addHistory(AppConstants.prefRtspHistory, value);
+  }
+
+  /// 清空RTSP地址历史
+  Future<void> clearRtspHistory() async {
+    await clearHistory(AppConstants.prefRtspHistory);
+  }
+
   /// 获取MQTT Topic历史
   List<String> get mqttTopicHistory =>
       getHistory(AppConstants.prefMqttTopicHistory);

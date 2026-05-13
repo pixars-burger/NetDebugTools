@@ -1,6 +1,9 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/theme/app_theme_controller.dart';
 import '../../models/message_data.dart';
 import '../../services/network_tool_service.dart';
 import '../../services/send_history_service.dart';
@@ -27,7 +30,6 @@ class _UdpPageState extends State<UdpPage> {
   DataFormat _receiveFormat = DataFormat.text;
   CharEncoding _encoding = CharEncoding.utf8;
   bool _isPinging = false;
-  bool _configExpanded = true;
   String? _pingResult;
   List<String> _sendHistory = [];
 
@@ -77,133 +79,98 @@ class _UdpPageState extends State<UdpPage> {
   Widget build(BuildContext context) {
     return Consumer<UdpService>(
       builder: (context, service, child) {
-        return LayoutBuilder(
-          builder: (context, constraints) {
-            final landscape =
-                constraints.maxWidth > constraints.maxHeight &&
-                constraints.maxWidth >= 700;
-            final keyboardVisible = View.of(context).viewInsets.bottom > 0;
-            final compactForInput = keyboardVisible && _sendFocusNode.hasFocus;
-
-            if (landscape) {
-              return SplitView(
-                mainFlex: 6,
-                sideFlex: 4,
-                main: _buildMainColumn(service),
-                side: Column(
-                  children: [
-                    _buildUdpConfig(service),
-                    if (service.errorMessage != null || _pingResult != null)
-                      _buildStatusDisplay(service),
-                    _buildSendArea(service),
-                  ],
+        return ProtocolScreenScaffold(
+          topSummary: _buildTopActions(service),
+          mainContent: Column(
+            children: [
+              Expanded(
+                child: DataDisplayList(
+                  messages: service.messages,
+                  displayFormat: _receiveFormat,
+                  encoding: _encoding,
+                  isPaused: service.isPaused,
+                  onClear: service.clearMessages,
+                  showToolbar: false,
                 ),
-              );
-            }
-
-            return Column(
-              children: [
-                if (!compactForInput) _buildUdpConfig(service),
-                if (!compactForInput &&
-                    (service.errorMessage != null || _pingResult != null))
-                  _buildStatusDisplay(service),
-                Expanded(
-                  child: Column(
-                    children: [
-                      if (!compactForInput)
-                        CompactStatisticsPanel(
-                          statistics: service.statistics,
-                          onReset: service.resetStatistics,
-                        ),
-                      if (!compactForInput) _buildFormatSelector(),
-                      Expanded(
-                        child: DataDisplayList(
-                          messages: service.messages,
-                          displayFormat: _receiveFormat,
-                          encoding: _encoding,
-                          isPaused: service.isPaused,
-                          onClear: service.clearMessages,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 8),
-                _buildSendArea(service),
-              ],
-            );
-          },
+              ),
+            ],
+          ),
+          sideContent: Column(
+            children: [
+              _buildUdpSummary(service),
+              _buildFormatSelector(),
+              if (service.errorMessage != null || _pingResult != null)
+                _buildStatusDisplay(service),
+              _buildSendArea(service),
+            ],
+          ),
         );
       },
     );
   }
 
-  Widget _buildMainColumn(UdpService service) {
-    return Column(
+  Widget _buildTopActions(UdpService service) {
+    return Row(
       children: [
-        CompactStatisticsPanel(
-          statistics: service.statistics,
-          onReset: service.resetStatistics,
+        IconButton.outlined(
+          onPressed: () => _showConfigSheet(service),
+          icon: const Icon(Icons.tune_rounded),
+          tooltip: 'UDP 配置',
         ),
-        _buildFormatSelector(),
-        Expanded(
-          child: DataDisplayList(
-            messages: service.messages,
-            displayFormat: _receiveFormat,
-            encoding: _encoding,
-            isPaused: service.isPaused,
-            onClear: service.clearMessages,
-          ),
+        const SizedBox(width: 8),
+        Builder(
+          builder: (context) {
+            final themeController = Provider.of<AppThemeController?>(context);
+            final isDark = themeController?.themeMode == ThemeMode.dark;
+            return IconButton.outlined(
+              onPressed: themeController?.toggleLightDark,
+              icon: Icon(isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded),
+              tooltip: '切换明暗主题',
+            );
+          },
+        ),
+        const SizedBox(width: 8),
+        IconButton.outlined(
+          onPressed: service.isActive
+              ? () => service.isPaused ? service.resume() : service.pause()
+              : null,
+          icon: Icon(service.isPaused ? Icons.play_arrow_rounded : Icons.pause_rounded),
+          tooltip: '暂停/恢复',
+        ),
+        const SizedBox(width: 8),
+        IconButton.outlined(
+          onPressed: service.clearMessages,
+          icon: const Icon(Icons.delete_sweep_rounded),
+          tooltip: '清空消息',
         ),
       ],
     );
   }
 
-  Widget _buildUdpConfig(UdpService service) {
+  Widget _buildUdpSummary(UdpService service) {
     final summary =
         '${_targetHostController.text.trim()}:${_targetPortController.text.trim()}';
+    return ConnectionSummaryBar(
+      isConnected: service.isActive,
+      statusLabel: service.isActive ? 'UDP 已启动' : 'UDP 未启动',
+      endpointLabel: summary,
+      speedLabel: '↑${service.statistics.formattedSentBytes} ↓${service.statistics.formattedReceivedBytes}',
+      modeLabel: _sendFormat == DataFormat.hex ? 'HEX 发送' : '快速发送',
+      onToggleConnection: () => _toggleUdp(service),
+      showConnectButton: false,
+      isPaused: service.isPaused,
+      onTogglePause: null,
+    );
+  }
+
+  Widget _buildUdpConfig(UdpService service) {
+    final lowPortWarning = _buildLowPortWarning(
+      _localPortController.text.trim(),
+    );
 
     return AppPanel(
       child: Column(
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      SectionBadge(
-                        icon: service.isActive
-                            ? Icons.wifi_tethering_rounded
-                            : Icons.portable_wifi_off_rounded,
-                        label: service.isActive ? 'UDP 已启动' : 'UDP 未启动',
-                        color: service.isActive
-                            ? const Color(0xFF059669)
-                            : Theme.of(context).colorScheme.outline,
-                      ),
-                      const SizedBox(width: 8),
-                      SectionBadge(
-                        icon: Icons.location_searching_rounded,
-                        label: summary,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              IconButton(
-                onPressed: () {
-                  setState(() => _configExpanded = !_configExpanded);
-                },
-                icon: Icon(
-                  _configExpanded
-                      ? Icons.keyboard_arrow_up_rounded
-                      : Icons.keyboard_arrow_down_rounded,
-                ),
-              ),
-            ],
-          ),
           const SizedBox(height: 10),
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
@@ -251,8 +218,7 @@ class _UdpPageState extends State<UdpPage> {
               ],
             ),
           ),
-          if (_configExpanded) ...[
-            const SizedBox(height: 10),
+          const SizedBox(height: 10),
             Row(
               children: [
                 Expanded(
@@ -261,6 +227,7 @@ class _UdpPageState extends State<UdpPage> {
                     decoration: const InputDecoration(labelText: '本地端口'),
                     keyboardType: TextInputType.number,
                     enabled: !service.isActive,
+                    onChanged: (_) => setState(() {}),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -281,7 +248,58 @@ class _UdpPageState extends State<UdpPage> {
                 ),
               ],
             ),
-          ],
+            if (lowPortWarning != null) ...[
+              const SizedBox(height: 8),
+              lowPortWarning,
+            ],
+        ],
+      ),
+    );
+  }
+
+  Widget? _buildLowPortWarning(String value) {
+    if (!Platform.isAndroid) {
+      return null;
+    }
+
+    final port = int.tryParse(value);
+    if (port == null || port >= 1024 || port < AppConstants.minBindablePort) {
+      return null;
+    }
+
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF59E0B).withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: const Color(0xFFF59E0B).withValues(alpha: 0.28),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.only(top: 1),
+            child: Icon(
+              Icons.warning_amber_rounded,
+              size: 16,
+              color: Color(0xFFD97706),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              '低于 1024 的端口在 Android 上通常需要更高权限，普通设备可能无法监听成功。',
+              style: TextStyle(
+                fontSize: 12,
+                height: 1.35,
+                color: scheme.onSurface,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -347,13 +365,16 @@ class _UdpPageState extends State<UdpPage> {
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
       child: Column(
         children: [
+          TextField(
+            controller: _sendController,
+            focusNode: _sendFocusNode,
+            decoration: const InputDecoration(hintText: '输入要发送的数据...'),
+            maxLines: 2,
+            minLines: 1,
+          ),
+          const SizedBox(height: 8),
           Row(
             children: [
-              SectionBadge(
-                icon: Icons.send_rounded,
-                label: '发送到 ${_targetPortController.text.trim()}',
-                color: Theme.of(context).colorScheme.primary,
-              ),
               const Spacer(),
               SendHistoryDropdown(
                 history: _sendHistory,
@@ -363,36 +384,38 @@ class _UdpPageState extends State<UdpPage> {
                   _loadSendHistory();
                 },
               ),
+              const SizedBox(width: 8),
+              FilledButton.icon(
+                onPressed: service.isActive ? () => _send(service) : null,
+                icon: const Icon(Icons.send_rounded, size: 18),
+                label: const Text('发送'),
+              ),
             ],
-          ),
-          const SizedBox(height: 10),
-          TextField(
-            controller: _sendController,
-            focusNode: _sendFocusNode,
-            decoration: const InputDecoration(hintText: '输入要发送的数据...'),
-            maxLines: 3,
-            minLines: 1,
-          ),
-          const SizedBox(height: 10),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: service.isActive ? () => _send(service) : null,
-              icon: const Icon(Icons.send_rounded, size: 18),
-              label: const Text('发送'),
-            ),
           ),
         ],
       ),
     );
   }
 
+  Future<void> _showConfigSheet(UdpService service) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => Consumer<UdpService>(builder: (context, liveService, _) => Padding(
+        padding: EdgeInsets.only(
+          left: 16,
+          right: 16,
+          top: 16,
+          bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+        ),
+        child: SingleChildScrollView(child: _buildUdpConfig(liveService)),
+      )),
+    );
+  }
+
   Future<void> _toggleUdp(UdpService service) async {
     if (service.isActive) {
       await service.stop();
-      if (mounted) {
-        setState(() => _configExpanded = true);
-      }
       return;
     }
 
@@ -404,14 +427,13 @@ class _UdpPageState extends State<UdpPage> {
         int.tryParse(_targetPortController.text.trim()) ??
         AppConstants.defaultUdpPort;
 
-    if (localPort < AppConstants.minPort || localPort > AppConstants.maxPort) {
+    if (localPort < AppConstants.minBindablePort ||
+        localPort > AppConstants.maxPort) {
       return;
     }
 
     await service.start(localPort, targetHost, targetPort);
-    if (mounted && service.isActive) {
-      setState(() => _configExpanded = false);
-    }
+    if (mounted) setState(() {});
   }
 
   Future<void> _send(UdpService service) async {

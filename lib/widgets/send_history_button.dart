@@ -4,12 +4,16 @@ class SendHistoryButton extends StatelessWidget {
   final List<String> history;
   final ValueChanged<String> onSelect;
   final VoidCallback? onClear;
+  final String tooltip;
+  final String clearText;
 
   const SendHistoryButton({
     super.key,
     required this.history,
     required this.onSelect,
     this.onClear,
+    this.tooltip = '发送历史',
+    this.clearText = '清空历史',
   });
 
   @override
@@ -20,7 +24,7 @@ class SendHistoryButton extends StatelessWidget {
 
     return PopupMenuButton<String>(
       icon: const Icon(Icons.history_rounded),
-      tooltip: '发送历史',
+      tooltip: tooltip,
       onSelected: (value) {
         if (value == '__clear__') {
           onClear?.call();
@@ -54,7 +58,7 @@ class SendHistoryButton extends StatelessWidget {
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    '清空历史',
+                    clearText,
                     style: TextStyle(
                       color: Theme.of(context).colorScheme.error,
                     ),
@@ -73,12 +77,20 @@ class SendHistoryDropdown extends StatelessWidget {
   final List<String> history;
   final ValueChanged<String> onSelect;
   final VoidCallback? onClear;
+  final String tooltip;
+  final String title;
+  final String emptyText;
+  final String clearText;
 
   const SendHistoryDropdown({
     super.key,
     required this.history,
     required this.onSelect,
     this.onClear,
+    this.tooltip = '发送历史',
+    this.title = '发送历史',
+    this.emptyText = '暂无发送历史',
+    this.clearText = '清空',
   });
 
   void _showHistoryDialog(BuildContext context) {
@@ -116,9 +128,9 @@ class SendHistoryDropdown extends StatelessWidget {
                   padding: const EdgeInsets.fromLTRB(16, 14, 12, 10),
                   child: Row(
                     children: [
-                      const Text(
-                        '发送历史',
-                        style: TextStyle(
+                      Text(
+                        title,
+                        style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
                         ),
@@ -134,14 +146,14 @@ class SendHistoryDropdown extends StatelessWidget {
                             Icons.delete_outline_rounded,
                             size: 18,
                           ),
-                          label: const Text('清空'),
+                          label: Text(clearText),
                         ),
                     ],
                   ),
                 ),
                 Expanded(
                   child: history.isEmpty
-                      ? const Center(child: Text('暂无发送历史'))
+                      ? Center(child: Text(emptyText))
                       : ListView.builder(
                           controller: scrollController,
                           itemCount: history.length,
@@ -181,7 +193,7 @@ class SendHistoryDropdown extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return IconButton(
-      tooltip: '发送历史',
+      tooltip: tooltip,
       onPressed: () => _showHistoryDialog(context),
       icon: Badge(
         isLabelVisible: history.isNotEmpty,
