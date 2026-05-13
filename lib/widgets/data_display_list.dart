@@ -93,14 +93,31 @@ class _DataDisplayListState extends State<DataDisplayList> {
         color: scheme.surface,
         borderRadius: BorderRadius.circular(18),
       ),
-      child: Column(
+      child: Stack(
         children: [
-          if (widget.showToolbar) _buildToolbar(context),
-          Expanded(
-            child: widget.messages.isEmpty
-                ? _buildEmptyState(context)
-                : _buildMessageList(context),
+          Column(
+            children: [
+              if (widget.showToolbar) _buildToolbar(context),
+              Expanded(
+                child: widget.messages.isEmpty
+                    ? _buildEmptyState(context)
+                    : _buildMessageList(context),
+              ),
+            ],
           ),
+          if (!_autoScrollEnabled)
+            Positioned(
+              right: 10,
+              bottom: 10,
+              child: FloatingActionButton.small(
+                heroTag: null,
+                onPressed: () {
+                  setState(() => _autoScrollEnabled = true);
+                  _scrollToBottom();
+                },
+                child: const Icon(Icons.arrow_downward_rounded, size: 18),
+              ),
+            ),
         ],
       ),
     );

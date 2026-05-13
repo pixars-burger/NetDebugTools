@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import '../models/models.dart';
 import '../utils/constants.dart';
+import 'message_flush_controller.dart';
 
 /// TCP客户端信息
 class TcpClientInfo {
@@ -47,6 +48,11 @@ class TcpServerService extends ChangeNotifier {
   final Statistics _statistics = Statistics();
   String? _errorMessage;
   bool _isPaused = false;
+  int _droppedMessages = 0;
+  final _flushController = MessageFlushController<MessageData>(
+    interval: const Duration(milliseconds: 150),
+    maxBatchSize: 40,
+  );
 
   String _bindAddress = '0.0.0.0';
   int _port = AppConstants.defaultTcpPort;
@@ -65,6 +71,7 @@ class TcpServerService extends ChangeNotifier {
   String get bindAddress => _bindAddress;
   int get port => _port;
   int get clientCount => _clients.length;
+  int get droppedMessages => _droppedMessages;
 
   /// 启动服务器
   Future<bool> start(String address, int port) async {
@@ -91,6 +98,14 @@ class TcpServerService extends ChangeNotifier {
         onError: _onServerError,
         onDone: _onServerDone,
       );
+
+      _flushController.start((batch) {
+        if (_isPaused) return;
+        for (final message in batch) {
+          _addMessage(message);
+        }
+        notifyListeners();
+      });
 
       notifyListeners();
       return true;
@@ -137,6 +152,7 @@ class TcpServerService extends ChangeNotifier {
     }
 
     _serverSocket = null;
+    _flushController.stop();
     _state = ServerState.stopped;
     notifyListeners();
   }
@@ -186,8 +202,7 @@ class TcpServerService extends ChangeNotifier {
       direction: MessageDirection.received,
       source: client.displayAddress,
     );
-    _addMessage(message);
-    notifyListeners();
+    _flushController.enqueue(message);
   }
 
   /// 处理客户端错误
@@ -286,7 +301,7 @@ class TcpServerService extends ChangeNotifier {
         direction: MessageDirection.sent,
         source: '广播 ($successCount/${_clients.length})',
       );
-      _addMessage(message);
+      _flushController.enqueue(message);
     }
 
     // 移除发送失败的客户端
@@ -318,6 +333,7 @@ class TcpServerService extends ChangeNotifier {
     _messages.add(message);
     if (_messages.length > AppConstants.maxMessageHistory) {
       _messages.removeAt(0);
+      _droppedMessages++;
     }
   }
 
@@ -356,6 +372,8 @@ class TcpServerService extends ChangeNotifier {
   /// 清空消息
   void clearMessages() {
     _messages.clear();
+    _droppedMessages = 0;
+    _flushController.clear();
     notifyListeners();
   }
 
@@ -376,6 +394,7 @@ class TcpServerService extends ChangeNotifier {
 
   @override
   void dispose() {
+    _flushController.stop();
     stop();
     super.dispose();
   }

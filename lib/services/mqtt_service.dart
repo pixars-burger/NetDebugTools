@@ -6,6 +6,7 @@ import 'package:typed_data/typed_data.dart';
 import 'package:uuid/uuid.dart';
 import '../models/models.dart';
 import '../utils/constants.dart';
+import 'message_flush_controller.dart';
 
 /// MQTT订阅信息
 class MqttSubscription {
@@ -34,6 +35,14 @@ class MqttService extends ChangeNotifier {
   final List<MqttSubscription> _subscriptions = [];
   String? _errorMessage;
   bool _isPaused = false;
+  int _droppedMessages = 0;
+  final _flushController = MessageFlushController<MessageData>(
+    interval: const Duration(milliseconds: 200),
+    maxBatchSize: 20,
+  );
+  static const int _maxPendingMessages = 3000;
+  StreamSubscription<List<MqttReceivedMessage<MqttMessage>>>?
+      _updatesSubscription;
 
   // 连接配置
   String _host = '';
@@ -54,6 +63,7 @@ class MqttService extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
   bool get isPaused => _isPaused;
   bool get isConnected => _state == ConnectionState.connected;
+  int get droppedMessages => _droppedMessages;
   String get host => _host;
   int get port => _port;
   String get clientId => _clientId;
@@ -135,7 +145,18 @@ class MqttService extends ChangeNotifier {
         _errorMessage = null;
 
         // 监听消息
-        _client!.updates?.listen(_onMessage);
+        _flushController.start((batch) {
+          if (_isPaused) return;
+          for (final message in batch) {
+            _addMessage(message);
+          }
+          notifyListeners();
+        });
+        _updatesSubscription?.cancel();
+        _updatesSubscription = _client!.updates?.listen(_onMessage, onError: (Object error) {
+          _errorMessage = '接收消息异常: $error';
+          notifyListeners();
+        });
 
         notifyListeners();
         return true;
@@ -159,7 +180,10 @@ class MqttService extends ChangeNotifier {
   Future<void> disconnect() async {
     _client?.disconnect();
     _client = null;
+    _updatesSubscription?.cancel();
+    _updatesSubscription = null;
     _subscriptions.clear();
+    _flushController.stop();
     _state = ConnectionState.disconnected;
     notifyListeners();
   }
@@ -256,23 +280,31 @@ class MqttService extends ChangeNotifier {
   void _onMessage(List<MqttReceivedMessage<MqttMessage>> messages) {
     if (_isPaused) return;
 
-    for (final message in messages) {
-      final topic = message.topic;
-      final payload = message.payload as MqttPublishMessage;
-      final data = Uint8List.fromList(payload.payload.message);
+    try {
+      for (final message in messages) {
+        final topic = message.topic;
+        final payload = message.payload as MqttPublishMessage;
+        final data = Uint8List.fromList(payload.payload.message);
 
-      _statistics.addReceivedData(data.length);
+        _statistics.addReceivedData(data.length);
 
-      final messageData = MessageData(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        data: data,
-        direction: MessageDirection.received,
-        topic: topic,
-        qos: payload.header?.qos.index,
-      );
-      _addMessage(messageData);
+        final messageData = MessageData(
+          id: DateTime.now().microsecondsSinceEpoch.toString(),
+          data: data,
+          direction: MessageDirection.received,
+          topic: topic,
+          qos: payload.header?.qos.index,
+        );
+        if (_flushController.pendingLength >= _maxPendingMessages) {
+          _droppedMessages++;
+          continue;
+        }
+        _flushController.enqueue(messageData);
+      }
+    } catch (e) {
+      _errorMessage = '处理消息异常: $e';
+      notifyListeners();
     }
-    notifyListeners();
   }
 
   /// 连接成功回调
@@ -308,6 +340,7 @@ class MqttService extends ChangeNotifier {
     _messages.add(message);
     if (_messages.length > AppConstants.maxMessageHistory) {
       _messages.removeAt(0);
+      _droppedMessages++;
     }
   }
 
@@ -326,6 +359,8 @@ class MqttService extends ChangeNotifier {
   /// 清空消息
   void clearMessages() {
     _messages.clear();
+    _flushController.clear();
+    _droppedMessages = 0;
     notifyListeners();
   }
 
@@ -357,6 +392,8 @@ class MqttService extends ChangeNotifier {
 
   @override
   void dispose() {
+    _updatesSubscription?.cancel();
+    _flushController.stop();
     disconnect();
     super.dispose();
   }

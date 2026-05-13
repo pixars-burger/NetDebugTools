@@ -120,9 +120,13 @@ class _TcpServerPageState extends State<TcpServerPage>
         Builder(
           builder: (context) {
             final themeController = Provider.of<AppThemeController?>(context);
-            final isDark = themeController?.themeMode == ThemeMode.dark;
+            final isDark = Theme.of(context).brightness == Brightness.dark;
             return IconButton.outlined(
-              onPressed: themeController?.toggleLightDark,
+              onPressed: themeController == null
+                  ? null
+                  : () => themeController.toggleFromBrightness(
+                        Theme.of(context).brightness,
+                      ),
               icon: Icon(isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded),
               tooltip: '切换明暗主题',
             );

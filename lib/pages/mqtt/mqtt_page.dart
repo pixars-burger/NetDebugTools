@@ -107,6 +107,20 @@ class _MqttPageState extends State<MqttPage>
           topSummary: Column(
             children: [
               _buildTopActions(service),
+              if (service.droppedMessages > 0)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6, bottom: 6),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      '已丢弃 ${service.droppedMessages} 条历史消息',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                  ),
+                ),
               if (errorWidget != null) errorWidget,
             ],
           ),
@@ -159,9 +173,13 @@ class _MqttPageState extends State<MqttPage>
         Builder(
           builder: (context) {
             final themeController = Provider.of<AppThemeController?>(context);
-            final isDark = themeController?.themeMode == ThemeMode.dark;
+            final isDark = Theme.of(context).brightness == Brightness.dark;
             return IconButton.outlined(
-              onPressed: themeController?.toggleLightDark,
+              onPressed: themeController == null
+                  ? null
+                  : () => themeController.toggleFromBrightness(
+                        Theme.of(context).brightness,
+                      ),
               icon: Icon(isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded),
               tooltip: '切换明暗主题',
             );
@@ -329,6 +347,10 @@ class _MqttPageState extends State<MqttPage>
                           if (topic.isEmpty) {
                             return;
                           }
+                          final canContinue = await _showWildcardRiskIfNeeded(topic);
+                          if (!canContinue) {
+                            return;
+                          }
                           service.subscribe(topic, qos: _subscribeQos);
                           await SendHistoryService.instance.saveLastSubTopic(
                             topic,
@@ -447,6 +469,36 @@ class _MqttPageState extends State<MqttPage>
         ));
       },
     );
+  }
+
+  bool _isDangerousWildcard(String topic) {
+    final normalized = topic.replaceAll(' ', '');
+    if (normalized == '#') return true;
+    if (normalized == '/#') return true;
+    if (normalized == '+/+/#') return true;
+    return false;
+  }
+
+  Future<bool> _showWildcardRiskIfNeeded(String topic) async {
+    if (!_isDangerousWildcard(topic)) {
+      return true;
+    }
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('高风险订阅提示'),
+        content: const Text(
+          '你正在订阅大范围通配符 Topic。\n\n'
+          '这可能导致消息洪峰、界面卡顿、内存上涨甚至应用无响应。\n\n'
+          '确认继续订阅吗？',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('取消')),
+          FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('继续订阅')),
+        ],
+      ),
+    );
+    return result ?? false;
   }
 
   Widget _buildConfigForm(MqttService service) {

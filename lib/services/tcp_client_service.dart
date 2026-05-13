@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import '../models/models.dart';
 import '../utils/constants.dart';
+import 'message_flush_controller.dart';
 
 /// TCP客户端服务
 class TcpClientService extends ChangeNotifier {
@@ -13,6 +14,11 @@ class TcpClientService extends ChangeNotifier {
   String? _errorMessage;
   bool _isPaused = false;
   StreamSubscription? _subscription;
+  int _droppedMessages = 0;
+  final _flushController = MessageFlushController<MessageData>(
+    interval: const Duration(milliseconds: 150),
+    maxBatchSize: 40,
+  );
 
   String _host = '';
   int _port = AppConstants.defaultTcpPort;
@@ -24,6 +30,7 @@ class TcpClientService extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
   bool get isPaused => _isPaused;
   bool get isConnected => _state == ConnectionState.connected;
+  int get droppedMessages => _droppedMessages;
   String get host => _host;
   int get port => _port;
 
@@ -59,6 +66,14 @@ class TcpClientService extends ChangeNotifier {
         cancelOnError: false,
       );
 
+      _flushController.start((batch) {
+        if (_isPaused) return;
+        for (final message in batch) {
+          _addMessage(message);
+        }
+        notifyListeners();
+      });
+
       notifyListeners();
       return true;
     } catch (e) {
@@ -81,6 +96,7 @@ class TcpClientService extends ChangeNotifier {
     }
 
     _socket = null;
+    _flushController.stop();
     _state = ConnectionState.disconnected;
     notifyListeners();
   }
@@ -127,8 +143,7 @@ class TcpClientService extends ChangeNotifier {
       data: data,
       direction: MessageDirection.received,
     );
-    _addMessage(message);
-    notifyListeners();
+    _flushController.enqueue(message);
   }
 
   /// 处理错误
@@ -150,6 +165,7 @@ class TcpClientService extends ChangeNotifier {
     _messages.add(message);
     if (_messages.length > AppConstants.maxMessageHistory) {
       _messages.removeAt(0);
+      _droppedMessages++;
     }
   }
 
@@ -168,6 +184,8 @@ class TcpClientService extends ChangeNotifier {
   /// 清空消息
   void clearMessages() {
     _messages.clear();
+    _droppedMessages = 0;
+    _flushController.clear();
     notifyListeners();
   }
 
@@ -185,6 +203,7 @@ class TcpClientService extends ChangeNotifier {
 
   @override
   void dispose() {
+    _flushController.stop();
     disconnect();
     super.dispose();
   }

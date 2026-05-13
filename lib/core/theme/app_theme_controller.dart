@@ -5,12 +5,7 @@ class AppThemeController extends ChangeNotifier {
 
   ThemeMode get themeMode => _themeMode;
 
-  bool get isDarkMode {
-    if (_themeMode == ThemeMode.dark) {
-      return true;
-    }
-    return false;
-  }
+  bool get isDarkMode => _themeMode == ThemeMode.dark;
 
   void setThemeMode(ThemeMode mode) {
     if (_themeMode == mode) {
@@ -22,6 +17,14 @@ class AppThemeController extends ChangeNotifier {
 
   void toggleLightDark() {
     if (_themeMode == ThemeMode.dark) {
+      setThemeMode(ThemeMode.light);
+    } else {
+      setThemeMode(ThemeMode.dark);
+    }
+  }
+
+  void toggleFromBrightness(Brightness currentBrightness) {
+    if (currentBrightness == Brightness.dark) {
       setThemeMode(ThemeMode.light);
     } else {
       setThemeMode(ThemeMode.dark);

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import '../models/models.dart';
 import '../utils/constants.dart';
+import 'message_flush_controller.dart';
 
 /// UDP服务
 class UdpService extends ChangeNotifier {
@@ -12,6 +13,11 @@ class UdpService extends ChangeNotifier {
   final List<MessageData> _messages = [];
   String? _errorMessage;
   bool _isPaused = false;
+  int _droppedMessages = 0;
+  final _flushController = MessageFlushController<MessageData>(
+    interval: const Duration(milliseconds: 150),
+    maxBatchSize: 40,
+  );
 
   int _localPort = AppConstants.defaultUdpPort;
   String _targetHost = '';
@@ -27,6 +33,7 @@ class UdpService extends ChangeNotifier {
   int get localPort => _localPort;
   String get targetHost => _targetHost;
   int get targetPort => _targetPort;
+  int get droppedMessages => _droppedMessages;
 
   /// 启动UDP监听
   Future<bool> start(int localPort, String targetHost, int targetPort) async {
@@ -54,6 +61,14 @@ class UdpService extends ChangeNotifier {
 
       // 监听数据
       _socket!.listen(_onEvent, onError: _onError, onDone: _onDone);
+
+      _flushController.start((batch) {
+        if (_isPaused) return;
+        for (final message in batch) {
+          _addMessage(message);
+        }
+        notifyListeners();
+      });
 
       notifyListeners();
       return true;
@@ -89,6 +104,7 @@ class UdpService extends ChangeNotifier {
   Future<void> stop() async {
     _socket?.close();
     _socket = null;
+    _flushController.stop();
     _state = ConnectionState.disconnected;
     notifyListeners();
   }
@@ -159,8 +175,7 @@ class UdpService extends ChangeNotifier {
           direction: MessageDirection.received,
           source: '${datagram.address.address}:${datagram.port}',
         );
-        _addMessage(message);
-        notifyListeners();
+        _flushController.enqueue(message);
       }
     }
   }
@@ -184,6 +199,7 @@ class UdpService extends ChangeNotifier {
     _messages.add(message);
     if (_messages.length > AppConstants.maxMessageHistory) {
       _messages.removeAt(0);
+      _droppedMessages++;
     }
   }
 
@@ -209,6 +225,8 @@ class UdpService extends ChangeNotifier {
   /// 清空消息
   void clearMessages() {
     _messages.clear();
+    _droppedMessages = 0;
+    _flushController.clear();
     notifyListeners();
   }
 
@@ -226,6 +244,7 @@ class UdpService extends ChangeNotifier {
 
   @override
   void dispose() {
+    _flushController.stop();
     stop();
     super.dispose();
   }
